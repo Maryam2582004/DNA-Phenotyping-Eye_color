@@ -1,79 +1,94 @@
+# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse, Circle
+import random
 
-# تحميل الداتا
+# ----------------------------
+# تحميل الداتا من GitHub
 url = "https://raw.githubusercontent.com/divyita/DNA-Phenotyping-Eye_color/main/synthetic_eye_color_dataset.csv"
 df = pd.read_csv(url)
+# ----------------------------
 
-st.title("👁️ DNA Eye Color Prediction (Blended)")
+st.title("👁️ DNA Eye Color Demo — Eye Preview")
 
-# خريطة ألوان نصية -> RGB
+# خريطة ألوان نصية -> HEX لقزحية العين
 color_map = {
-    "blue": (47, 111, 219),   # أزرق
-    "brown": (107, 62, 33),   # بني
-    "green": (30, 154, 95),   # أخضر
-    "hazel": (154, 111, 42),  # عسلي
-    "gray": (126, 135, 144)   # رمادي
+    "blue": "#2F6FDB",
+    "brown": "#6B3E21",
+    "green": "#1E9A5F",
+    "hazel": "#9A6F2A",
+    "gray": "#7E8790"
 }
 
-def blend_colors(results):
-    """مزج الألوان حسب الاحتمالات"""
-    rgb = np.zeros(3)
-    for color, prob in results.items():
-        if color.lower() in color_map:
-            rgb += np.array(color_map[color.lower()]) * prob
-    rgb = rgb / 100  # لأن الاحتمالات بالـ %
-    return tuple(rgb.astype(int))
+st.write("اضغط Generate عشان نجيب عيّنة عشوائية من الداتا ونستعرض شكل العين.")
 
-if st.button("🔮 Generate Eye"):
-    # --- احتمالات عشوائية (مكان الموديل) ---
-    colors = list(color_map.keys())
-    probs = np.random.dirichlet(np.ones(len(colors)), size=1)[0] * 100
+if st.button("Generate Random Prediction"):
+    # اختيار صف عشوائي
+    sample = df.sample(1).iloc[0]
+    true_color = sample["eye_color"]  # اللون الحقيقي من الداتا (لو حابة تعرضي)
+    
+    # لو ما عندكيش موديل، نولّد احتمالات عشوائية (Dirichlet) للاستعراض
+    colors = df["eye_color"].unique()
+    probs = np.random.dirichlet(np.ones(len(colors)), size=1)[0]
     results = {c: p for c, p in zip(colors, probs)}
-    st.subheader("Probabilities")
-    st.write(results)
+    predicted = max(results, key=results.get)
+    pred_prob = results[predicted]
 
-    # --- تحديد اللون النهائي ---
-    blended_rgb = blend_colors(results)
-    hex_color = '#%02x%02x%02x' % blended_rgb
-    st.write(f"Final Blended Color: {hex_color}")
+    st.subheader("Predicted Eye Color")
+    st.markdown(f"**{predicted.capitalize()}** — {pred_prob*100:.2f}%")
 
-    # --- رسم عين طبيعية أكتر ---
+    # عرض اللون الحقيقي لو موجود
+    if "eye_color" in df.columns:
+        st.write(f"Actual (ground truth): **{true_color}**")
+
+    # ---------- رسم شكل العين (matplotlib) ----------
+    iris_color = color_map.get(predicted.lower(), "#333333")
     fig, ax = plt.subplots(figsize=(4,2.5))
 
-    # sclera (بياض العين)
-    sclera = Ellipse((0.5, 0.5), 1.0, 0.6, color="white", ec="black", lw=1.5)
+    # رسم الشكل الخارجي للعين (sclera) كـ ellipse أبيض
+    sclera = Ellipse(xy=(0.5, 0.5), width=0.95, height=0.6, angle=0, facecolor="white", edgecolor="black", linewidth=1.2)
     ax.add_patch(sclera)
 
-    # iris (قزحية العين) بلون مدمج
-    iris = Circle((0.5, 0.5), 0.18, facecolor=hex_color, edgecolor="black", lw=0.8)
+    # رسم القزحية (iris) كـ دائرة في منتصف العين
+    iris = Circle((0.5, 0.5), 0.18, facecolor=iris_color, edgecolor="black", linewidth=0.8)
     ax.add_patch(iris)
 
-    # خطوط شعاعية للقزحية (عشان شكل طبيعي أكتر)
-    num_spokes = 40
+    # رسم نمط بسيط للقزحية: شوية خطوط شعاعية (optional look)
+    num_spokes = 18
     for i in range(num_spokes):
         angle = 2 * np.pi * i / num_spokes
-        r1, r2 = 0.05, 0.18
-        x1 = 0.5 + r1 * np.cos(angle)
-        y1 = 0.5 + r1 * np.sin(angle)
-        x2 = 0.5 + r2 * np.cos(angle)
-        y2 = 0.5 + r2 * np.sin(angle)
-        ax.plot([x1, x2], [y1, y2], color=hex_color, lw=0.5, alpha=0.2)
+        x_start = 0.5 + 0.02 * np.cos(angle)
+        y_start = 0.5 + 0.02 * np.sin(angle)
+        x_end = 0.5 + 0.18 * np.cos(angle)
+        y_end = 0.5 + 0.18 * np.sin(angle)
+        ax.plot([x_start, x_end], [y_start, y_end], color=iris_color, linewidth=0.8, alpha=0.25)
 
-    # pupil (بؤبؤ العين)
-    pupil = Circle((0.5, 0.5), 0.07, color="black")
+    # رسم البؤبؤ (pupil)
+    pupil = Circle((0.5, 0.5), 0.07, facecolor="black")
     ax.add_patch(pupil)
 
-    # highlight (لمعة العين)
-    highlight = Circle((0.56, 0.58), 0.03, color="white", alpha=0.8)
+    # إضافة بريق صغير (highlight)
+    highlight = Circle((0.58, 0.62), 0.03, facecolor="white", edgecolor=None, alpha=0.9)
     ax.add_patch(highlight)
+    highlight2 = Circle((0.52, 0.56), 0.007, facecolor="white", alpha=0.9)
+    ax.add_patch(highlight2)
 
+    # تهيئة الشكل وإخفاء المحاور
     ax.set_xlim(0,1)
     ax.set_ylim(0,1)
     ax.set_aspect('equal')
     ax.axis('off')
 
     st.pyplot(fig)
+
+    # ---------- Chart للاحتمالات ----------
+    st.subheader("Predicted Probabilities")
+    prob_series = pd.Series(results).sort_values(ascending=False)
+    st.bar_chart(prob_series)
+    
+    # عرض بيانات الـ sample (اختياري)
+    with st.expander("Show sample DNA row"):
+        st.write(sample)
